@@ -636,6 +636,15 @@
         return;
       }
 
+      // Security: Never trigger on password inputs or sensitive form fields
+      if (sel.anchorNode) {
+        const parent = sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement;
+        if (parent && parent.closest('input[type="password"], [data-sensitive], [autocomplete*="password"], [autocomplete*="cc-"], [autocomplete*="credit-card"]')) {
+          hideFloatingButton();
+          return;
+        }
+      }
+
       const currentHost = window.location.hostname;
       if ((userSettings.disabledDomains || []).includes(currentHost)) {
         return;
@@ -746,7 +755,7 @@
     const targetName = LANG_NAMES[userSettings.targetLang] || userSettings.targetLang;
     if (pageTranslation.isShowingOriginal) {
       pageTranslation.nodes.forEach(({ node, origVal, transVal }) => {
-        if (node && transVal) {
+        if (node && node.isConnected && transVal) {
           const leadingSpace = origVal.match(/^\s*/)[0];
           const trailingSpace = origVal.match(/\s*$/)[0];
           node.nodeValue = leadingSpace + transVal.trim() + trailingSpace;
@@ -757,7 +766,7 @@
       showToast('Switched to translation');
     } else {
       pageTranslation.nodes.forEach(({ node, origVal }) => {
-        if (node && origVal) node.nodeValue = origVal;
+        if (node && node.isConnected && origVal) node.nodeValue = origVal;
       });
       pageTranslation.isShowingOriginal = true;
       showPageBanner('Original Page');
@@ -768,7 +777,7 @@
   function restoreOriginalPage() {
     if (pageTranslation.nodes.length) {
       pageTranslation.nodes.forEach(({ node, origVal }) => {
-        if (node && origVal) node.nodeValue = origVal;
+        if (node && node.isConnected && origVal) node.nodeValue = origVal;
       });
       pageTranslation.isShowingOriginal = true;
       showPageBanner('Original Page');
@@ -883,7 +892,7 @@
         if (res && res.status === 'done' && Array.isArray(res.translations)) {
           batch.forEach((item, idx) => {
             const trans = res.translations[idx];
-            if (trans && item.node) {
+            if (trans && item.node && item.node.isConnected) {
               item.transVal = trans;
               const leadingSpace = item.origVal.match(/^\s*/)[0];
               const trailingSpace = item.origVal.match(/\s*$/)[0];
