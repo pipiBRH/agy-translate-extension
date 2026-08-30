@@ -295,6 +295,13 @@
     let cardTop = (anchorRect ? anchorRect.bottom + 8 : window.innerHeight / 2 - 180) + scrollY;
 
     const cardWidth = 480;
+    const estimatedHeight = 360;
+
+    // Flip above selection if too close to bottom of screen
+    if (anchorRect && anchorRect.bottom + estimatedHeight > window.innerHeight && anchorRect.top > estimatedHeight + 20) {
+      cardTop = anchorRect.top + scrollY - estimatedHeight - 10;
+    }
+
     if (cardLeft + cardWidth > window.innerWidth + scrollX - 20) {
       cardLeft = window.innerWidth + scrollX - cardWidth - 20;
     }
@@ -675,6 +682,13 @@
     if (!isExtensionValid()) return;
     if (!modalCard) return;
 
+    // Do not intercept keystrokes if the user is typing in an input, textarea, or contenteditable
+    const active = document.activeElement;
+    if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) {
+      if (e.key === 'Escape') hideModalCard();
+      return;
+    }
+
     if (e.key === 'Escape') {
       hideModalCard();
       return;
@@ -802,7 +816,7 @@
           const parent = node.parentElement;
           if (!parent) return NodeFilter.FILTER_REJECT;
 
-          if (parent.closest('pre, code, kbd, samp, script, style, svg, noscript, input, textarea, select, [contenteditable], #agy-translate-extension-host')) {
+          if (parent.closest('pre, code, kbd, samp, script, style, svg, noscript, input, textarea, select, option, math, template, canvas, audio, video, object, embed, [contenteditable], [role="textbox"], #agy-translate-extension-host')) {
             return NodeFilter.FILTER_REJECT;
           }
 

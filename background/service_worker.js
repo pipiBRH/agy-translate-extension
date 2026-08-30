@@ -24,7 +24,7 @@ async function getStoredSettings() {
 }
 
 /**
- * Scan for running agytrans service
+ * Scan for running agytrans service in parallel
  */
 async function findActivePort(basePort) {
   const portsToTry = [cachedPort];
@@ -32,10 +32,10 @@ async function findActivePort(basePort) {
     if (!portsToTry.includes(p)) portsToTry.push(p);
   }
 
-  for (const port of portsToTry) {
+  const checkPort = async (port) => {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 600);
+      const timeoutId = setTimeout(() => controller.abort(), 700);
       const res = await fetch(`http://127.0.0.1:${port}/ping`, {
         signal: controller.signal,
         cache: 'no-store'
@@ -43,14 +43,19 @@ async function findActivePort(basePort) {
       clearTimeout(timeoutId);
       if (res.ok) {
         const json = await res.json();
-        if (json.app === 'agy-translate') {
-          cachedPort = port;
+        if (json && json.app === 'agy-translate') {
           return port;
         }
       }
-    } catch (e) {
-      // Try next
-    }
+    } catch (e) {}
+    return null;
+  };
+
+  const results = await Promise.all(portsToTry.map(checkPort));
+  const active = results.find((p) => p !== null);
+  if (active) {
+    cachedPort = active;
+    return active;
   }
   return null;
 }
@@ -166,12 +171,22 @@ chrome.runtime.onStartup.addListener(() => {
 // Handle Context Menu item clicks
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (!tab || !tab.id) return;
+  const sendSafeTabMessage = (msg) => {
+    try {
+      chrome.tabs.sendMessage(tab.id, msg, () => {
+        if (chrome.runtime.lastError) {
+          // Catch on restricted browser pages (chrome://, edge://)
+        }
+      });
+    } catch (e) {}
+  };
+
   if (info.menuItemId === 'agy-translate-full-page') {
-    chrome.tabs.sendMessage(tab.id, { type: 'START_FULL_PAGE_TRANSLATION' });
+    sendSafeTabMessage({ type: 'START_FULL_PAGE_TRANSLATION' });
   } else if (info.menuItemId === 'agy-restore-full-page') {
-    chrome.tabs.sendMessage(tab.id, { type: 'RESTORE_ORIGINAL_PAGE' });
+    sendSafeTabMessage({ type: 'RESTORE_ORIGINAL_PAGE' });
   } else if (info.menuItemId === 'agy-translate-selection') {
-    chrome.tabs.sendMessage(tab.id, { type: 'TRIGGER_SHORTCUT_TRANSLATE' });
+    sendSafeTabMessage({ type: 'TRIGGER_SHORTCUT_TRANSLATE' });
   }
 });
 
@@ -212,7 +227,11 @@ chrome.commands.onCommand.addListener((command) => {
   if (command === 'toggle-translate') {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (tabs && tabs[0] && tabs[0].id) {
-        chrome.tabs.sendMessage(tabs[0].id, { type: 'TRIGGER_SHORTCUT_TRANSLATE' });
+        try {
+          chrome.tabs.sendMessage(tabs[0].id, { type: 'TRIGGER_SHORTCUT_TRANSLATE' }, () => {
+            if (chrome.runtime.lastError) {}
+          });
+        } catch (e) {}
       }
     });
   }
