@@ -1,0 +1,12 @@
+.DS_Store
+*.log
+*.tmp
+.env
+.env.*
+node_modules/
+dist/
+build/
+oauth.json
+credentials.json
+*.pem
+*.key

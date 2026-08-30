@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>agy Translate</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m5 8 6 6"/>
+          <path d="m4 14 6-6 2-3"/>
+          <path d="M2 5h12"/>
+          <path d="M7 2h1"/>
+          <path d="m22 22-5-10-5 10"/>
+          <path d="M14 18h6"/>
+        </svg>
+      </div>
+      <div class="title">agy Translate</div>
+    </div>
+    <div class="status-badge" id="serverStatus">Checking…</div>
+  </header>
+
+  <div class="input-container">
+    <textarea id="srcInput" placeholder="Enter or paste text to translate…" rows="3" autofocus></textarea>
+    <div class="input-bar">
+      <div class="char-count" id="charCount">0 chars</div>
+      <div class="action-buttons">
+        <button class="btn btn-sm" id="btnTranslate">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m5 8 6 6"/>
+            <path d="m4 14 6-6 2-3"/>
+            <path d="M2 5h12"/>
+            <path d="M7 2h1"/>
+            <path d="m22 22-5-10-5 10"/>
+            <path d="M14 18h6"/>
+          </svg>
+          <span id="btnTranslateLabel">Translate</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <main id="resultContainer">
+    <div class="empty-hint">
+      <div class="hint-icon">
+        <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m5 8 6 6"/>
+          <path d="m4 14 6-6 2-3"/>
+          <path d="M2 5h12"/>
+          <path d="M7 2h1"/>
+          <path d="m22 22-5-10-5 10"/>
+          <path d="M14 18h6"/>
+        </svg>
+      </div>
+      <div class="hint-text">Select text on any webpage or enter text above</div>
+      <div class="shortcut-tip">Shortcut: <kbd>Alt + T</kbd> / <kbd>Option + T</kbd></div>
+    </div>
+  </main>
+
+  <div class="toast" id="toast">Copied</div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
