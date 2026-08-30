@@ -272,7 +272,13 @@
   }
 
   function renderInlineMarkdown(text) {
-    const esc = (text || '').replace(/[&<>]/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]));
+    const esc = (text || '').replace(/[&<>'"]/g, (m) => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      "'": '&#39;',
+      '"': '&quot;'
+    }[m]));
     return esc
       .replace(/^[-*•]\s+/gm, '• ')
       .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
@@ -439,12 +445,12 @@
     (data.alts || []).forEach((alt) => {
       const aCard = document.createElement('div');
       aCard.className = 'agy-item-card';
-      const tone = alt.tone || 'neutral';
+      const safeTone = ['casual', 'neutral', 'formal', 'terse'].includes(alt.tone) ? alt.tone : 'neutral';
       const aText = (alt.text || '').trim();
       aCard.innerHTML = `
         <div class="agy-item-top">
-          <span class="agy-num">${alt.n}</span>
-          <span class="agy-note"><span class="agy-dot t-${tone}"></span>${escapeHTML(alt.note || '')}</span>
+          <span class="agy-num">${parseInt(alt.n, 10) || ''}</span>
+          <span class="agy-note"><span class="agy-dot t-${safeTone}"></span>${escapeHTML(alt.note || '')}</span>
           <button class="agy-speak-btn" title="Read aloud">${ICONS.speaker}</button>
           <div class="agy-copy-indicator" title="Click to copy">${ICONS.copy}</div>
         </div>

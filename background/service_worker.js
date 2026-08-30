@@ -192,6 +192,11 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 
 // Message listener
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  // Security: Reject any message from external/unauthorized extensions
+  if (sender && sender.id && sender.id !== chrome.runtime.id) {
+    return;
+  }
+
   if (request.type === 'TRANSLATE') {
     handleTranslate(request.text, request.targetLang).then(sendResponse);
     return true;
