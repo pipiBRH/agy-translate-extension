@@ -207,13 +207,15 @@
       </button>
     `;
 
-    const scrollX = window.scrollX || window.pageXOffset;
-    const scrollY = window.scrollY || window.pageYOffset;
-    let posX = rect.right + scrollX + 4;
-    let posY = rect.top + scrollY - 8;
+    const scrollX = window.scrollX || window.pageXOffset || 0;
+    const scrollY = window.scrollY || window.pageYOffset || 0;
+    let posX = (rect.right || 0) + scrollX + 4;
+    let posY = (rect.top || 0) + scrollY - 8;
 
-    if (rect.top < 36) posY = rect.bottom + scrollY + 6;
-    if (rect.right > window.innerWidth - 60) posX = rect.left + scrollX - 32;
+    if (isNaN(posX) || isNaN(posY)) return;
+
+    if (rect.top < 36) posY = (rect.bottom || 0) + scrollY + 6;
+    if (rect.right > window.innerWidth - 60) posX = (rect.left || 0) + scrollX - 32;
 
     floatingBtn.style.left = `${Math.max(8, posX)}px`;
     floatingBtn.style.top = `${Math.max(8, posY)}px`;
@@ -731,12 +733,12 @@
     if (inProgress) {
       pageTranslation.bannerEl.innerHTML = `
         <div class="agy-spinner-sm"></div>
-        <span class="agy-banner-title">${text}</span>
+        <span class="agy-banner-title">${escapeHTML(text)}</span>
       `;
     } else {
       pageTranslation.bannerEl.innerHTML = `
         <div class="agy-banner-icon">${ICONS.translateLogo}</div>
-        <span class="agy-banner-title">${text}</span>
+        <span class="agy-banner-title">${escapeHTML(text)}</span>
         <button class="agy-banner-btn agy-banner-toggle-btn" type="button">
           ${pageTranslation.isShowingOriginal ? '🌐 Show Translation' : '↩️ Show Original'}
         </button>

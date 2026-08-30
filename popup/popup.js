@@ -106,11 +106,11 @@ document.addEventListener('DOMContentLoaded', () => {
     (data.alts || []).forEach((alt) => {
       const a = document.createElement('div');
       a.className = 'card';
-      const tone = alt.tone || 'neutral';
+      const safeTone = ['casual', 'neutral', 'formal', 'terse'].includes(alt.tone) ? alt.tone : 'neutral';
       a.innerHTML = `
         <div class="card-top">
-          <span class="num">${alt.n}</span>
-          <span class="note"><span class="dot t-${tone}"></span>${escapeHTML(alt.note || '')}</span>
+          <span class="num">${parseInt(alt.n, 10) || ''}</span>
+          <span class="note"><span class="dot t-${safeTone}"></span>${escapeHTML(alt.note || '')}</span>
         </div>
         <div class="card-text">${escapeHTML((alt.text || '').trim())}</div>
       `;
