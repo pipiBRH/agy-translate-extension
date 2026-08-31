@@ -10,3 +10,7 @@ oauth.json
 credentials.json
 *.pem
 *.key
+
+# Python bytecode — leaks local absolute paths, never commit
+__pycache__/
+*.py[cod]
