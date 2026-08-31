@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Translation</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --bg-sub: #f5f5f7;
+    --card: #ffffff;
+    --card-hover: #f0f7ff;
+    --border: #e3e3e6;
+    --border-strong: #d0d0d4;
+    --text: #1d1d1f;
+    --text-dim: #6e6e73;
+    --accent: #0071e3;
+    --shadow: 0 1px 2px rgba(0,0,0,.06), 0 4px 12px rgba(0,0,0,.05);
+    --shadow-hover: 0 2px 6px rgba(0,0,0,.09), 0 10px 24px rgba(0,0,0,.09);
+    --tone-casual: #2fa84f;
+    --tone-neutral: #0a84ff;
+    --tone-formal: #a041d0;
+    --tone-terse: #e08600;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1c1e;
+      --bg-sub: #141416;
+      --card: #2c2c2e;
+      --card-hover: #35383d;
+      --border: #3a3a3c;
+      --border-strong: #48484a;
+      --text: #f5f5f7;
+      --text-dim: #98989d;
+      --accent: #0a84ff;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 12px rgba(0,0,0,.25);
+      --shadow-hover: 0 2px 8px rgba(0,0,0,.4), 0 12px 28px rgba(0,0,0,.35);
+      --tone-casual: #40d463;
+      --tone-neutral: #4aa8ff;
+      --tone-formal: #c07ae8;
+      --tone-terse: #ffab2e;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg-sub);
+    color: var(--text);
+    font: 14px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text",
+          "PingFang TC", "Helvetica Neue", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    display: flex; flex-direction: column;
+    user-select: none;
+    overflow: hidden;
+  }
+
+  header {
+    position: sticky; top: 0; z-index: 10;
+    padding: 14px 18px 12px;
+    background: color-mix(in srgb, var(--bg-sub) 88%, transparent);
+    backdrop-filter: saturate(180%) blur(20px);
+    border-bottom: 1px solid var(--border);
+  }
+  .mode { font-size: 12px; font-weight: 600; color: var(--accent); letter-spacing: .04em; }
+  .src {
+    margin-top: 3px; font-size: 13px; color: var(--text-dim);
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden; user-select: text;
+  }
+  .srcrow { display: flex; align-items: flex-start; gap: 6px; }
+  .srcrow .src { flex: 1; min-width: 0; }
+  .srcrow .speak { margin-left: 0; }
+  header .speak:hover { background: var(--card); }
+
+  main { flex: 1; overflow-y: auto; padding: 14px 18px 20px; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 13px 15px;
+    margin-bottom: 10px;
+    box-shadow: var(--shadow);
+    cursor: pointer;
+    transition: transform .12s ease, box-shadow .12s ease,
+                background .12s ease, border-color .12s ease;
+    position: relative;
+  }
+  .card:hover {
+    background: var(--card-hover);
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow-hover);
+    transform: translateY(-1px);
+  }
+  .card:active { transform: translateY(0) scale(.995); }
+  .card.primary { border-color: color-mix(in srgb, var(--accent) 42%, var(--border)); }
+  .card.flash { animation: flash .5s ease; }
+  @keyframes flash {
+    0%   { background: color-mix(in srgb, var(--accent) 20%, var(--card)); }
+    100% { background: var(--card); }
+  }
+
+  .row { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+  .badge {
+    font-size: 11px; font-weight: 700; letter-spacing: .03em;
+    color: var(--accent);
+  }
+  .num {
+    width: 17px; height: 17px; flex: none;
+    border-radius: 5px; background: var(--bg-sub);
+    border: 1px solid var(--border);
+    font-size: 10px; font-weight: 700; color: var(--text-dim);
+    display: grid; place-items: center;
+  }
+  .note {
+    margin-left: auto; font-size: 11.5px; color: var(--text-dim);
+    display: flex; align-items: center; gap: 5px;
+    text-align: right;
+  }
+  .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+  .t-casual  { background: var(--tone-casual); }
+  .t-neutral { background: var(--tone-neutral); }
+  .t-formal  { background: var(--tone-formal); }
+  .t-terse   { background: var(--tone-terse); }
+
+  /* Sits inside .row, next to the note. The card copies on click, so the
+     button's own handler has to stop the event from reaching it. */
+  .speak {
+    margin-left: auto;            /* takes the right edge when there is no .note */
+    flex: none; width: 22px; height: 22px;
+    display: grid; place-items: center;
+    padding: 0; border: 0; border-radius: 6px;
+    background: transparent; color: var(--text-dim);
+    font: inherit; -webkit-appearance: none;
+    cursor: pointer;
+    transition: color .12s ease, background .12s ease;
+  }
+  .note + .speak { margin-left: 6px; }   /* .note already claimed the auto */
+  .speak:hover { color: var(--accent); background: var(--bg-sub); }
+  .speak:active { transform: scale(.92); }
+  .speak.on { color: var(--accent); }
+  .speak .wave { opacity: .75; }
+  .speak .wave.far { opacity: .45; }
+  .speak.on .wave { animation: wave .9s ease-in-out infinite; }
+  @keyframes wave { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
+
+  .text { font-size: 14.5px; white-space: pre-wrap; word-break: break-word; user-select: text; }
+  .card.primary .text { font-size: 15.5px; font-weight: 500; }
+
+  .info { background: transparent; border-style: dashed; }
+  .info .text { font-size: 12.5px; color: var(--text-dim); }
+  .text strong { font-weight: 650; color: var(--text); }
+  .text code {
+    font: 500 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+    background: var(--bg-sub); border: 1px solid var(--border);
+    border-radius: 4px; padding: 1px 5px; margin: 0 1px;
+    color: var(--text);
+  }
+
+  .hint {
+    margin: 2px 0 12px; font-size: 11.5px; color: var(--text-dim);
+    display: flex; gap: 12px; flex-wrap: wrap;
+  }
+  kbd {
+    font: 600 10.5px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+    padding: 3px 5px; border-radius: 4px;
+    background: var(--card); border: 1px solid var(--border);
+    box-shadow: 0 1px 0 var(--border-strong);
+  }
+
+  .state { padding: 40px 18px; text-align: center; color: var(--text-dim); }
+  .spinner {
+    width: 22px; height: 22px; margin: 0 auto 14px;
+    border: 2.5px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .err { color: #ff453a; font-size: 13px; white-space: pre-wrap; user-select: text; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 22px;
+    transform: translateX(-50%) translateY(14px);
+    background: var(--text); color: var(--bg);
+    font-size: 12.5px; font-weight: 600;
+    padding: 8px 15px; border-radius: 9px;
+    opacity: 0; pointer-events: none;
+    transition: opacity .16s ease, transform .16s ease;
+    box-shadow: 0 6px 20px rgba(0,0,0,.28);
+  }
+  .toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="mode" id="mode">Translation</div>
+  <div class="srcrow" id="srcRow">
+    <div class="src" id="src"></div>
+  </div>
+</header>
+
+<main id="main">
+  <div class="state">
+    <div class="spinner"></div>
+    <div id="loadingText">Translating…</div>
+    <div style="font-size:12px;margin-top:5px;opacity:.75">This usually takes about 10 seconds</div>
+  </div>
+</main>
+
+<div class="toast" id="toast">Copied</div>
+
+<script>
+// The server substitutes this on the way out, but only for a request holding a
+// valid one-shot ticket. Everything sensitive arrives here, in the response
+// body — never in the URL, because the URL is a Chrome argument and `ps` shows
+// those to every process on the machine.
+const BOOT = /*BOOT*/null/*BOOT*/;
+
+// A reload asks for the same URL, whose ticket is already spent, so BOOT comes
+// back null. Stash it on the way in: sessionStorage is scoped to this window
+// and dies with it, so Cmd+R keeps working without any of this going back into
+// a URL.
+const STASH = 'agytrans-boot';
+let boot = BOOT;
+if (boot) {
+  try { sessionStorage.setItem(STASH, JSON.stringify(boot)); } catch (e) {}
+  // The spent ticket is harmless now, but there is no reason to leave it in
+  // the address bar or in history either.
+  try { history.replaceState({}, '', location.pathname); } catch (e) {}
+} else {
+  try { boot = JSON.parse(sessionStorage.getItem(STASH) || 'null'); } catch (e) {}
+}
+boot = boot || {};
+
+const key = boot.key || '';
+const token = boot.t || '';
+const label = boot.label || 'Translation';
+const q = boot.source || '';
+
+document.getElementById('mode').textContent = label;
+document.getElementById('src').textContent = q;
+document.title = label + '｜' + q.slice(0, 20);
+
+let cards = [];      // In display order, so the number keys can index into it
+let closeOnCopy = true;
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('on');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('on'), 1400);
+}
+
+/**
+ * Fit the window height to the content. A short translation shouldn't leave a
+ * big empty area, and a long one shouldn't force scrolling to see it all.
+ * Only works in a Chrome --app window; a normal tab blocks it, which is fine —
+ * we just fall back to the original fixed height.
+ */
+function fitWindow() {
+  try {
+    const header = document.querySelector('header');
+    const main = document.getElementById('main');
+    const needed = header.offsetHeight + main.scrollHeight + 24;
+    const chromeH = Math.max(window.outerHeight - window.innerHeight, 0);
+    // Cap follows the screen, otherwise long content pushes past the display
+    // (measured: fix mode reaches 900)
+    const maxH = Math.min(900, (window.screen.availHeight || 900) - 60);
+    const target = Math.min(Math.max(needed + chromeH, 240), maxH);
+    if (Math.abs(target - window.outerHeight) > 12) {
+      window.resizeTo(window.outerWidth, Math.round(target));
+    }
+  } catch (e) { /* Blocked is fine; nothing depends on it */ }
+}
+
+async function copyText(text, el, keepOpen) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (e) {
+    // localhost should be allowed, but if it ever isn't, the legacy API
+    // keeps copy working instead of failing outright
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch (_) {}
+    ta.remove();
+  }
+  if (el) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
+  if (keepOpen || !closeOnCopy) {
+    toast('Copied');
+  } else {
+    toast('Copied — closing…');
+    setTimeout(() => window.close(), 380);
+  }
+}
+
+/* ---------------------------------------------------------------- speak
+ *
+ * Reading a line out loud never leaves this machine. The voices Chrome lists
+ * with localService are synthesised by macOS itself; the "Google …" entries in
+ * that same list are the opposite — Chrome ships the text off to Google's
+ * servers to have it spoken. Translated text is precisely what must not go
+ * there, so those are filtered out and there is deliberately no fallback onto
+ * them: no local voice means no sound and no button, never a quiet upload.
+ */
+const SPEECH = 'speechSynthesis' in window;
+
+// Han, kana and hangul. Enough to tell "which of the two languages on screen is
+// this card" — the only question being asked.
+const CJK = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\u3040-\u30ff\uac00-\ud7af]/;
+
+// macOS keeps its novelty voices (Bad News, Zarvox, Bubbles…) in the same list
+// as the real ones, so "the first en-US voice" lands on a joke. These are
+// matched as prefixes, which also picks up the higher-quality downloads —
+// installing "Ava (Premium)" in System Settings upgrades this for free.
+const PREFER = {
+  en: ['Ava', 'Allison', 'Samantha', 'Zoe', 'Evan', 'Nathan', 'Susan', 'Alex', 'Tom', 'Daniel', 'Karen'],
+  zh: ['Meijia', 'Tingting', 'Sinji'],
+};
+
+const SPEAKER_SVG =
+  '<svg viewBox="0 0 18 16" width="15" height="14" aria-hidden="true">' +
+  '<path d="M9.1 2.2 5.6 5H3.1c-.6 0-1 .4-1 1v4c0 .6.4 1 1 1h2.5l3.5 2.8c.4.3 1 .1 1-.4V2.6c0-.5-.6-.7-1-.4z"' +
+  ' fill="currentColor"/>' +
+  '<path class="wave" d="M12.4 5.8c.9.5 1.5 1.3 1.5 2.2s-.6 1.7-1.5 2.2" stroke="currentColor"' +
+  ' stroke-width="1.3" fill="none" stroke-linecap="round"/>' +
+  '<path class="wave far" d="M14.6 3.6c1.4 1 2.3 2.6 2.3 4.4s-.9 3.4-2.3 4.4" stroke="currentColor"' +
+  ' stroke-width="1.3" fill="none" stroke-linecap="round"/>' +
+  '</svg>';
+
+let voices = [];
+let speaking = null;      // The button that owns whatever is being said
+
+function loadVoices() {
+  try {
+    voices = (window.speechSynthesis.getVoices() || []).filter(
+      // localService is the flag that matters; the name is a second lock in case
+      // a future Chrome ever mislabels its own remote voices.
+      (v) => v.localService && !/^Google/i.test(v.name || '')
+    );
+  } catch (e) { voices = []; }
+}
+
+function pickVoice(lang) {
+  const pool = voices.filter((v) => (v.lang || '').toLowerCase().startsWith(lang));
+  if (!pool.length) return null;
+  for (const name of PREFER[lang] || []) {
+    const hit = pool.find((v) => v.name.startsWith(name));
+    if (hit) return hit;
+  }
+  return pool.find((v) => v.default) || pool[0];
+}
+
+function stopSpeaking() {
+  if (speaking) { speaking.classList.remove('on'); speaking = null; }
+  try { window.speechSynthesis.cancel(); } catch (e) {}
+}
+
+function speak(text, btn) {
+  if (speaking === btn) return stopSpeaking();   // Pressing the same one stops it
+  stopSpeaking();
+
+  const lang = CJK.test(text) ? 'zh' : 'en';
+  const voice = pickVoice(lang);
+  if (!voice) return toast('No local ' + lang + ' voice installed');
+
+  const u = new SpeechSynthesisUtterance(text);
+  u.voice = voice;
+  u.lang = voice.lang;
+  // A lone word is being played to hear how it is pronounced, so give it room;
+  // a sentence just wants to sound normal. Chinese writes no spaces between
+  // words, so there the length is the only signal available.
+  const bare = text.trim();
+  const word = lang === 'zh' ? bare.length <= 4 : !/\s/.test(bare);
+  u.rate = word ? 0.85 : 0.98;
+  u.onend = u.onerror = () => { if (speaking === btn) stopSpeaking(); };
+
+  speaking = btn;
+  btn.classList.add('on');
+  // cancel() is asynchronous inside Chrome: speaking right after it can land in
+  // the queue being torn down and never make a sound.
+  setTimeout(() => {
+    if (speaking !== btn) return;
+    try { window.speechSynthesis.speak(u); } catch (e) { stopSpeaking(); }
+  }, 60);
+}
+
+function speakButton(text) {
+  const b = document.createElement('button');
+  b.className = 'speak';
+  b.type = 'button';
+  b.title = 'Read aloud';
+  b.setAttribute('aria-label', 'Read aloud');
+  b.innerHTML = SPEAKER_SVG;        // A fixed constant above, never page content
+  b.addEventListener('click', (ev) => {
+    ev.stopPropagation();           // The card copies on click; this must not
+    speak(text, b);
+  });
+  return b;
+}
+
+if (SPEECH) {
+  loadVoices();
+  // The list is usually ready on the first paint, but not always.
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+  // Closing the window must not leave a voice talking to an empty desk.
+  window.addEventListener('pagehide', stopSpeaking);
+  if (q) document.getElementById('srcRow').appendChild(speakButton(q));
+}
+
+/**
+ * Explanatory content (What changed, plain-text replies) carries **bold** and
+ * `code` markers; showing it raw would just display a pile of asterisks. Only
+ * those two markers are handled, everything else is left alone. Escape first,
+ * then substitute: the content is local, but not worth risking XSS over.
+ */
+function renderInline(text) {
+  const esc = text.replace(/[&<>]/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]));
+  return esc
+    .replace(/^[-*]\s+/gm, '• ')
+    .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/`([^`\n]+)`/g, '<code>$1</code>');
+}
+
+function makeCard(opts) {
+  const div = document.createElement('div');
+  div.className = 'card' + (opts.primary ? ' primary' : '') + (opts.info ? ' info' : '');
+
+  const row = document.createElement('div');
+  row.className = 'row';
+
+  if (opts.primary) {
+    const b = document.createElement('div');
+    b.className = 'badge';
+    b.textContent = '★ ' + opts.label;
+    row.appendChild(b);
+  } else if (opts.num) {
+    const n = document.createElement('div');
+    n.className = 'num';
+    n.textContent = opts.num;
+    row.appendChild(n);
+  } else if (opts.info) {
+    const b = document.createElement('div');
+    b.className = 'badge';
+    b.style.color = 'var(--text-dim)';
+    b.textContent = opts.label;
+    row.appendChild(b);
+  }
+
+  if (opts.note) {
+    const nt = document.createElement('div');
+    nt.className = 'note';
+    if (opts.tone) {
+      const d = document.createElement('span');
+      d.className = 'dot t-' + opts.tone;
+      nt.appendChild(d);
+    }
+    nt.appendChild(document.createTextNode(opts.note));
+    row.appendChild(nt);
+  }
+
+  // Not on the info cards: those explain what changed, and there is nothing to
+  // hear in a footnote.
+  if (SPEECH && !opts.info) row.appendChild(speakButton(opts.text));
+
+  const tx = document.createElement('div');
+  tx.className = 'text';
+  if (opts.rich) tx.innerHTML = renderInline(opts.text);
+  else tx.textContent = opts.text;   // The translation itself is shown verbatim
+
+  div.appendChild(row);
+  div.appendChild(tx);
+  div.addEventListener('click', (ev) => copyText(opts.text, div, ev.metaKey || ev.altKey));
+  return div;
+}
+
+function render(data) {
+  const main = document.getElementById('main');
+  main.innerHTML = '';
+  cards = [];
+
+  const hint = document.createElement('div');
+  hint.className = 'hint';
+  hint.innerHTML =
+    '<span><kbd>click</kbd> copy</span>' +
+    '<span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> copy that line</span>' +
+    '<span><kbd>⌘</kbd>+click keep open</span>' +
+    '<span><kbd>esc</kbd> close</span>';
+  main.appendChild(hint);
+
+  if (data.primary) {
+    const c = makeCard({
+      text: data.primary.text,
+      label: data.primary.label,
+      note: data.primary.note,
+      tone: 'neutral',
+      primary: true,
+      // Only the "whole response" fallback needs markers rendered;
+      // a normal translation is left untouched
+      rich: data.primary.label === 'Result',
+    });
+    main.appendChild(c);
+    cards.push({ el: c, text: data.primary.text });
+  }
+
+  (data.alts || []).forEach((a) => {
+    const c = makeCard({ text: a.text, num: a.n, note: a.note, tone: a.tone });
+    main.appendChild(c);
+    cards.push({ el: c, text: a.text });
+  });
+
+  (data.infos || []).forEach((i) => {
+    const c = makeCard({ text: i.text, label: i.title, info: true, rich: true });
+    main.appendChild(c);
+  });
+
+  requestAnimationFrame(fitWindow);
+}
+
+function showError(msg) {
+  document.getElementById('main').innerHTML =
+    '<div class="state"><div class="err">Failed\n\n' +
+    String(msg).replace(/[<>&]/g, (m) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[m])) +
+    '</div></div>';
+  requestAnimationFrame(fitWindow);
+}
+
+async function poll(tries) {
+  try {
+    const r = await fetch('/api/result?key=' + encodeURIComponent(key) +
+                          '&t=' + encodeURIComponent(token), { cache: 'no-store' });
+    const j = await r.json();
+    if (j.status === 'done') return render(j.data);
+    if (j.status === 'error') return showError(j.message || 'Unknown error');
+  } catch (e) {
+    if (tries > 8) return showError('Cannot reach the local service: ' + e);
+  }
+  if (tries > 300) return showError('Timed out — agy may not be responding');
+  setTimeout(() => poll(tries + 1), 400);
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { window.close(); return; }
+  if (e.metaKey && e.key === 'c' && !window.getSelection().toString()) {
+    if (cards[0]) { e.preventDefault(); copyText(cards[0].text, cards[0].el, true); }
+    return;
+  }
+  if (e.key === 'Enter' && cards[0]) { copyText(cards[0].text, cards[0].el); return; }
+  const n = parseInt(e.key, 10);
+  if (!isNaN(n) && n >= 1 && n <= 9 && cards[n]) {
+    copyText(cards[n].text, cards[n].el, e.metaKey || e.altKey);
+  }
+});
+
+if (!key) showError('Missing key parameter'); else poll(0);
+</script>
+</body>
+</html>
