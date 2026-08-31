@@ -537,7 +537,7 @@
         <div class="agy-err-title">Google Authentication Needed</div>
         <div class="agy-err-desc">Run this in your terminal to sign in:</div>
         <div class="agy-code-box">
-          <code>python3 agytrans.py login</code>
+          <code>python3 server/server.py login</code>
           <button class="agy-copy-cmd-btn">Copy Command</button>
         </div>
       </div>
