@@ -13,36 +13,35 @@ if [ ! -x "$PYTHON_BIN" ]; then
   exit 1
 fi
 
-# 2. Dynamically locate daemon script
-SERVER_PATH=""
-
-# Prefer self-contained server.py inside extension repo
-if [ -f "$SCRIPT_DIR/server/server.py" ]; then
-  SERVER_PATH="$SCRIPT_DIR/server/server.py"
-fi
-
-# Fallback: Search in Alfred Workflows
-if [ -z "$SERVER_PATH" ]; then
-  FOUND=$(find "$HOME/Alfred" "$HOME/Library/Application Support/Alfred" -name "agytrans.py" 2>/dev/null | head -n 1 || true)
-  if [ -n "$FOUND" ] && [ -f "$FOUND" ]; then
-    SERVER_PATH="$FOUND"
-  fi
-fi
-
-if [ -z "$SERVER_PATH" ]; then
-  echo "❌ Error: Could not automatically locate server.py or agytrans.py."
-  echo "Please specify the server path manually."
+# 2. Prefer self-contained server.py inside extension repo
+SERVER_PATH="$SCRIPT_DIR/server/server.py"
+if [ ! -f "$SERVER_PATH" ]; then
+  echo "❌ Error: Could not find server.py at $SERVER_PATH"
   exit 1
 fi
 
 echo "📍 Python interpreter: $PYTHON_BIN"
 echo "📍 Daemon script:     $SERVER_PATH"
 
-# 3. Kill any lingering or stale background processes
+# 3. Synchronize with Alfred workflow if present on this machine
+ALFRED_AGYTRANS=$(find "$HOME/Alfred" "$HOME/Library/Application Support/Alfred" -name "agytrans.py" 2>/dev/null || true)
+if [ -n "$ALFRED_AGYTRANS" ]; then
+  for af in $ALFRED_AGYTRANS; do
+    if [ -f "$af" ]; then
+      echo "🔄 Syncing updated daemon to Alfred: $af"
+      cp "$SERVER_PATH" "$af"
+    fi
+  done
+fi
+
+# 4. Force kill ANY old process occupying port 47821
+echo "🧹 Releasing port 47821..."
+lsof -ti :47821 -sTCP:LISTEN | xargs kill -9 2>/dev/null || true
 pkill -f "server.py serve" 2>/dev/null || true
 pkill -f "agytrans.py serve" 2>/dev/null || true
+sleep 1
 
-# 4. Generate LaunchAgent plist dynamically
+# 5. Generate LaunchAgent plist dynamically
 cat <<EOF > "$TARGET_DIR/$PLIST_NAME"
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -69,11 +68,11 @@ cat <<EOF > "$TARGET_DIR/$PLIST_NAME"
 </plist>
 EOF
 
-# 5. Reload LaunchAgent
+# 6. Reload LaunchAgent
 launchctl unload "$TARGET_DIR/$PLIST_NAME" 2>/dev/null || true
 launchctl load "$TARGET_DIR/$PLIST_NAME"
 
-# 6. Verify daemon health
+# 7. Verify daemon health
 sleep 1
 PING_RES=$(curl -s http://127.0.0.1:47821/ping || true)
 if [[ "$PING_RES" == *"agy-translate"* ]]; then
@@ -83,7 +82,7 @@ else
   tail -n 10 /tmp/agytrans.stderr.log 2>/dev/null || true
 fi
 
-# 7. Check Google Login status
+# 8. Check Google Login status
 LOGIN_CHECK=$("$PYTHON_BIN" -c "
 import sys, os
 sys.path.insert(0, os.path.dirname('$SERVER_PATH'))
