@@ -54,11 +54,18 @@ A high-performance text selection and full-page translation browser extension po
 
 ## 🔌 Local Daemon Service
 
-The extension communicates with the local `agytrans` daemon at `http://127.0.0.1:47821`, sharing your Antigravity credentials without requiring third-party API keys.
+The extension includes a self-contained local daemon (`server/server.py`) that runs locally on `http://127.0.0.1:47821` and communicates directly with Google Antigravity. It does not require third-party API keys and seamlessly shares existing OAuth credentials with Alfred if available.
 
-### Start Background Service (macOS LaunchAgent)
+### 1. Authenticate (First-time setup on a new computer)
 
-Run the installation script to configure `agytrans` to run automatically in the background on startup:
+```bash
+python3 server/server.py login
+```
+*(If you have already signed in via Alfred on this machine, your credentials are automatically detected!)*
+
+### 2. Start Background Service (macOS LaunchAgent)
+
+Run the installation script to configure the service to run automatically in the background on startup:
 
 ```bash
 ./launchd/install_daemon.sh
@@ -66,7 +73,7 @@ Run the installation script to configure `agytrans` to run automatically in the 
 
 To run manually in foreground:
 ```bash
-python3 agytrans.py serve
+python3 server/server.py serve
 ```
 
 ---

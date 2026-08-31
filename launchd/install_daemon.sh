@@ -3,34 +3,34 @@ set -e
 
 PLIST_NAME="com.agy.translate.plist"
 TARGET_DIR="$HOME/Library/LaunchAgents"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 mkdir -p "$TARGET_DIR"
 
-# Dynamically find agytrans.py in Alfred workflows or local environment
-AGYTRANS_PATH=""
+# Dynamically locate daemon script
+SERVER_PATH=""
 
-# 1. Search in Alfred Workflows
-FOUND=$(find "$HOME/Alfred" "$HOME/Library/Application Support/Alfred" -name "agytrans.py" 2>/dev/null | head -n 1 || true)
-if [ -n "$FOUND" ] && [ -f "$FOUND" ]; then
-  AGYTRANS_PATH="$FOUND"
+# 1. Prefer self-contained server.py inside extension repo
+if [ -f "$SCRIPT_DIR/server/server.py" ]; then
+  SERVER_PATH="$SCRIPT_DIR/server/server.py"
 fi
 
-# 2. Search in common development folders
-if [ -z "$AGYTRANS_PATH" ]; then
-  FOUND=$(find "$HOME" -maxdepth 4 -name "agytrans.py" 2>/dev/null | head -n 1 || true)
+# 2. Fallback: Search in Alfred Workflows
+if [ -z "$SERVER_PATH" ]; then
+  FOUND=$(find "$HOME/Alfred" "$HOME/Library/Application Support/Alfred" -name "agytrans.py" 2>/dev/null | head -n 1 || true)
   if [ -n "$FOUND" ] && [ -f "$FOUND" ]; then
-    AGYTRANS_PATH="$FOUND"
+    SERVER_PATH="$FOUND"
   fi
 fi
 
-if [ -z "$AGYTRANS_PATH" ]; then
-  echo "❌ Error: Could not automatically locate agytrans.py."
-  echo "Please specify the path to agytrans.py manually."
+if [ -z "$SERVER_PATH" ]; then
+  echo "❌ Error: Could not automatically locate server.py or agytrans.py."
+  echo "Please specify the server path manually."
   exit 1
 fi
 
-echo "📍 Found agytrans.py at: $AGYTRANS_PATH"
+echo "📍 Using daemon script at: $SERVER_PATH"
 
-# Generate plist dynamically without hardcoded usernames
+# Generate LaunchAgent plist dynamically
 cat <<EOF > "$TARGET_DIR/$PLIST_NAME"
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -41,7 +41,7 @@ cat <<EOF > "$TARGET_DIR/$PLIST_NAME"
     <key>ProgramArguments</key>
     <array>
         <string>/usr/bin/python3</string>
-        <string>$AGYTRANS_PATH</string>
+        <string>$SERVER_PATH</string>
         <string>serve</string>
         <string>47821</string>
     </array>
