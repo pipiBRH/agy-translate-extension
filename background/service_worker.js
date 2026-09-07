@@ -493,24 +493,39 @@ async function handleTranslateBatch(texts, targetLang = 'zh-TW', senderUrl = nul
 }
 
 // Setup Context Menus
+const CONTEXT_MENU_ITEMS = [
+  { id: 'agy-translate-full-page', title: '🌐 Translate Page', contexts: ['page'] },
+  { id: 'agy-restore-full-page', title: '↩️ Show Original Page', contexts: ['page'] },
+  { id: 'agy-translate-selection', title: '🌐 Translate Selection (agy Translate)', contexts: ['selection'] }
+];
+
+// onInstalled and onStartup can both fire around one browser launch, and this
+// used to run an independent removeAll -> create pair per call. removeAll is
+// async, so the second batch of create() calls could land after the first
+// batch had already recreated the items — "Cannot create item with duplicate
+// id". Chaining every call onto one in-flight promise keeps setup serial.
+let contextMenuSetup = Promise.resolve();
+
 function setupContextMenus() {
-  chrome.contextMenus.removeAll(() => {
-    chrome.contextMenus.create({
-      id: 'agy-translate-full-page',
-      title: '🌐 Translate Page',
-      contexts: ['page']
-    });
-    chrome.contextMenus.create({
-      id: 'agy-restore-full-page',
-      title: '↩️ Show Original Page',
-      contexts: ['page']
-    });
-    chrome.contextMenus.create({
-      id: 'agy-translate-selection',
-      title: '🌐 Translate Selection (agy Translate)',
-      contexts: ['selection']
-    });
-  });
+  contextMenuSetup = contextMenuSetup
+    .catch(() => {})
+    .then(() => new Promise((resolve) => {
+      chrome.contextMenus.removeAll(() => {
+        void chrome.runtime.lastError;    // Nothing to remove is not an error
+        let pending = CONTEXT_MENU_ITEMS.length;
+        const done = () => {
+          // Reading lastError inside the callback is what marks a failed
+          // create() as handled; without it Chrome logs "Unchecked
+          // runtime.lastError" even when we do not care about the outcome.
+          void chrome.runtime.lastError;
+          if (--pending === 0) resolve();
+        };
+        for (const item of CONTEXT_MENU_ITEMS) {
+          chrome.contextMenus.create(item, done);
+        }
+      });
+    }));
+  return contextMenuSetup;
 }
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -554,6 +569,17 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   });
 });
 
+// Returning true from a listener promises a reply. If the promise behind that
+// promise rejects and nothing ever calls sendResponse, the sender is left
+// holding a port that just closes — "The message port closed before a response
+// was received". Answer on the failure path too.
+function settle(promise, sendResponse) {
+  Promise.resolve(promise).then(
+    (res) => sendResponse(res),
+    (err) => sendResponse({ success: false, online: false, error: String((err && err.message) || err) })
+  );
+}
+
 // Message listener
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   // Security: Reject any message from external/unauthorized extensions
@@ -569,7 +595,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       sendResponse({ success: false, error: 'Unauthorized sender: restricted to options page' });
       return true;
     }
-    pairWithServer(request.code, request.serverPort).then(sendResponse);
+    settle(pairWithServer(request.code, request.serverPort), sendResponse);
     return true;
   }
 
@@ -578,7 +604,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       sendResponse({ success: false, error: 'Unauthorized sender: restricted to options page' });
       return true;
     }
-    unpairServer().then(sendResponse);
+    settle(unpairServer(), sendResponse);
     return true;
   }
 
@@ -587,13 +613,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       sendResponse({ success: false, error: 'Unauthorized sender: restricted to options page' });
       return true;
     }
-    getPairedCredentials().then((creds) => {
-      sendResponse({
-        paired: Boolean(creds && creds.paired),
-        clientId: creds ? creds.clientId : null,
-        serverPort: creds ? creds.serverPort : DEFAULT_PORT
-      });
-    });
+    settle(getPairedCredentials().then((creds) => ({
+      paired: Boolean(creds && creds.paired),
+      clientId: creds ? creds.clientId : null,
+      serverPort: creds ? creds.serverPort : DEFAULT_PORT
+    })), sendResponse);
     return true;
   }
 
@@ -602,7 +626,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       sendResponse({ success: false, error: 'Unauthorized sender: restricted to options page' });
       return true;
     }
-    clearServerCache().then(sendResponse);
+    settle(clearServerCache(), sendResponse);
     return true;
   }
 
@@ -633,38 +657,43 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   if (request.type === 'TRANSLATE') {
     const senderUrl = (sender.tab && sender.tab.url) || sender.url || null;
-    handleTranslate(request.text, request.targetLang, senderUrl).then(sendResponse);
+    settle(handleTranslate(request.text, request.targetLang, senderUrl), sendResponse);
     return true;
   }
 
   if (request.type === 'TRANSLATE_BATCH') {
     const senderUrl = (sender.tab && sender.tab.url) || sender.url || null;
-    handleTranslateBatch(request.texts, request.targetLang, senderUrl).then(sendResponse);
+    settle(handleTranslateBatch(request.texts, request.targetLang, senderUrl), sendResponse);
     return true;
   }
 
   if (request.type === 'CHECK_SERVER') {
     const explicitPort = isOptions && Number.isInteger(request.serverPort)
       && request.serverPort >= 1024 && request.serverPort <= 65535;
-    getStoredSettings()
-      .then((s) => findActivePort(explicitPort ? request.serverPort : (s.serverPort || DEFAULT_PORT), explicitPort))
-      .then(async (port) => {
-        if (!port) {
-          sendResponse({ online: false, verified: false, port: null });
-          return;
-        }
-        const creds = await getPairedCredentials();
-        const verified = creds.paired ? await verifyServer(port, creds) : false;
-        sendResponse({ online: true, verified, port, paired: Boolean(creds.paired) });
-      });
+    settle(
+      getStoredSettings()
+        .then((s) => findActivePort(explicitPort ? request.serverPort : (s.serverPort || DEFAULT_PORT), explicitPort))
+        .then(async (port) => {
+          if (!port) return { online: false, verified: false, port: null };
+          const creds = await getPairedCredentials();
+          const verified = creds.paired ? await verifyServer(port, creds) : false;
+          return { online: true, verified, port, paired: Boolean(creds.paired) };
+        }),
+      sendResponse
+    );
     return true;
   }
 
   if (request.type === 'GET_SETTINGS') {
     // Only return user UI settings from storage.sync, never credentials
-    getStoredSettings().then(sendResponse);
+    settle(getStoredSettings(), sendResponse);
     return true;
   }
+
+  // Falling off the end here left the sender waiting on a port that then
+  // closed. Answer instead, so an unrecognised type reports itself.
+  sendResponse({ success: false, error: `Unknown message type: ${request && request.type}` });
+  return false;
 });
 
 // Shortcut command trigger with disabledDomains check
