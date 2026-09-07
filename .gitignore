@@ -8,6 +8,12 @@ dist/
 build/
 oauth.json
 credentials.json
+paired_clients.json
+pairing_code.json
+server_secret
+client_secret
+.pairing.lock
+.clients.lock
 *.pem
 *.key
 

@@ -336,6 +336,13 @@
           renderResultUI(res.data, text, targetLang);
         } else if (res.status === 'needs_login') {
           renderNeedsLoginUI(res.message);
+        } else if (res.status === 'not_paired') {
+          renderNotPairedUI(res.message);
+        } else if (res.status === 'server_unverified') {
+          renderServerUnverifiedUI(res.message);
+        } else if (res.status === 'domain_disabled') {
+          showToast('Translation disabled on this domain');
+          hideModalCard();
         } else if (res.status === 'server_offline') {
           renderServerOfflineUI(res.message);
         } else {
@@ -546,6 +553,43 @@
     bindHeaderEvents();
   }
 
+  function renderNotPairedUI(msg) {
+    modalCard.innerHTML = `
+      <div class="agy-card-header">
+        <div class="agy-title">🔒 Extension Not Paired</div>
+        <div class="agy-header-actions">
+          <button class="agy-btn-icon agy-close-btn">${ICONS.close}</button>
+        </div>
+      </div>
+      <div class="agy-error-box">
+        <div class="agy-err-title">Pairing Required for Privacy</div>
+        <div class="agy-err-desc">To protect against unauthorized local access, generate a one-time pairing code in Terminal:</div>
+        <div class="agy-code-box">
+          <code>python3 server/server.py pair</code>
+        </div>
+        <div class="agy-err-desc" style="margin-top:8px;">Then enter the code in the Extension Options page.</div>
+      </div>
+    `;
+    bindHeaderEvents();
+  }
+
+  function renderServerUnverifiedUI(msg) {
+    modalCard.innerHTML = `
+      <div class="agy-card-header">
+        <div class="agy-title">⚠️ Security Alert</div>
+        <div class="agy-header-actions">
+          <button class="agy-btn-icon agy-close-btn">${ICONS.close}</button>
+        </div>
+      </div>
+      <div class="agy-error-box">
+        <div class="agy-err-title">Server Identity Verification Failed</div>
+        <div class="agy-err-desc">${escapeHTML(msg || 'The local service did not provide a valid cryptographic proof.')}</div>
+        <div class="agy-err-desc" style="margin-top:8px;color:#ff453a;">Translation text was NOT sent to protect your data.</div>
+      </div>
+    `;
+    bindHeaderEvents();
+  }
+
   function renderErrorUI(msg) {
     modalCard.innerHTML = `
       <div class="agy-card-header">
@@ -638,6 +682,47 @@
     }[tag] || tag));
   }
 
+  function isCurrentHostDisabled() {
+    const host = (window.location.hostname || '').toLowerCase();
+    const domains = userSettings.disabledDomains || [];
+    return domains.some((d) => {
+      const domain = (d || '').trim().toLowerCase();
+      return domain && (host === domain || host.endsWith('.' + domain));
+    });
+  }
+
+  function isElementVisible(el) {
+    if (!el) return false;
+    if (typeof el.checkVisibility === 'function') {
+      try {
+        return el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true, contentVisibilityAuto: true });
+      } catch (e) {
+        // Fall back to manual traversal if browser lacks option support
+      }
+    }
+    let cur = el;
+    while (cur) {
+      if (cur.nodeType === 1) {
+        if (cur.hasAttribute && (cur.hasAttribute('hidden') || cur.hidden)) {
+          return false;
+        }
+        try {
+          const style = window.getComputedStyle ? window.getComputedStyle(cur) : (cur.style || null);
+          if (style) {
+            if (style.display === 'none' || style.visibility === 'hidden' || style.visibility === 'collapse' || style.opacity === '0') {
+              return false;
+            }
+            if (style.contentVisibility === 'hidden') {
+              return false;
+            }
+          }
+        } catch (e) {}
+      }
+      cur = cur.parentElement || (cur.parentNode && cur.parentNode.nodeType === 1 ? cur.parentNode : null);
+    }
+    return true;
+  }
+
   document.addEventListener('mouseup', (e) => {
     if (!isExtensionValid()) return;
     if (hostEl && (e.target === hostEl || hostEl.contains(e.target))) return;
@@ -660,8 +745,7 @@
         }
       }
 
-      const currentHost = window.location.hostname;
-      if ((userSettings.disabledDomains || []).includes(currentHost)) {
+      if (isCurrentHostDisabled()) {
         return;
       }
 
@@ -824,7 +908,18 @@
           const parent = node.parentElement;
           if (!parent) return NodeFilter.FILTER_REJECT;
 
-          if (parent.closest('pre, code, kbd, samp, script, style, svg, noscript, input, textarea, select, option, math, template, canvas, audio, video, object, embed, [contenteditable], [role="textbox"], #agy-translate-extension-host')) {
+          // Exclude technical, code, script, media, and extension host elements
+          if (parent.closest('pre, code, kbd, samp, script, style, svg, noscript, input, textarea, select, option, math, template, canvas, audio, video, object, embed, [contenteditable], [role="textbox"], [role="searchbox"], #agy-translate-extension-host')) {
+            return NodeFilter.FILTER_REJECT;
+          }
+
+          // Privacy fix 3: Exclude sensitive, hidden, password, or credit-card fields
+          if (parent.closest('[data-sensitive], [aria-hidden="true"], [hidden], details:not([open]), [autocomplete*="password"], [autocomplete*="cc-"], [autocomplete*="credit-card"]')) {
+            return NodeFilter.FILTER_REJECT;
+          }
+
+          // Privacy fix 3: Exclude CSS hidden ancestors while preserving visible offscreen text
+          if (!isElementVisible(parent)) {
             return NodeFilter.FILTER_REJECT;
           }
 
@@ -850,6 +945,11 @@
   }
 
   async function translateFullPage() {
+    if (isCurrentHostDisabled()) {
+      showToast('Translation is disabled on this domain');
+      return;
+    }
+
     if (pageTranslation.isTranslating) {
       showToast('Page translation is already in progress…');
       return;
@@ -921,6 +1021,12 @@
               item.node.nodeValue = leadingSpace + trans.trim() + trailingSpace;
             }
           });
+        } else if (res && res.status === 'domain_disabled') {
+          showToast('Translation disabled on this domain');
+        } else if (res && res.status === 'not_paired') {
+          showToast('Extension not paired. Open Options to pair.');
+        } else if (res && res.status === 'server_unverified') {
+          showToast('Security alert: local server verification failed');
         }
       } catch (err) {
         console.error('Batch translation error:', err);
@@ -943,10 +1049,18 @@
 
   chrome.runtime.onMessage.addListener((req) => {
     if (req.type === 'START_FULL_PAGE_TRANSLATION') {
+      if (isCurrentHostDisabled()) {
+        showToast('Translation disabled on this domain');
+        return;
+      }
       translateFullPage();
     } else if (req.type === 'RESTORE_ORIGINAL_PAGE') {
       restoreOriginalPage();
     } else if (req.type === 'TRIGGER_SHORTCUT_TRANSLATE') {
+      if (isCurrentHostDisabled()) {
+        showToast('Translation disabled on this domain');
+        return;
+      }
       const sel = window.getSelection();
       const text = sel ? sel.toString().trim() : '';
       if (text && text.length >= 2) {
@@ -955,6 +1069,10 @@
         executeTranslate(text, rect);
       } else {
         showToast('Select text to translate first');
+      }
+    } else if (req.type === 'SETTINGS_UPDATED') {
+      if (req.settings) {
+        userSettings = { ...userSettings, ...req.settings };
       }
     }
   });
@@ -1548,5 +1666,12 @@
         }
       }
     `;
+  }
+
+  if (typeof window !== 'undefined' && window.__AGY_TEST_HOOKS__) {
+    window.__AGY_TEST_HOOKS__.isElementVisible = isElementVisible;
+    window.__AGY_TEST_HOOKS__.collectTranslatableTextNodes = collectTranslatableTextNodes;
+    window.__AGY_TEST_HOOKS__.isCurrentHostDisabled = isCurrentHostDisabled;
+    window.__AGY_TEST_HOOKS__.userSettings = userSettings;
   }
 })();

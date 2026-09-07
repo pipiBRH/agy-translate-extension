@@ -41,7 +41,38 @@ A high-performance text selection and full-page translation browser extension po
 
 ---
 
-## 🚀 Installation
+## 🔒 Security Architecture & Privacy Hardening
+
+The extension authenticates its local daemon before sending translation text. Text you explicitly translate is sent to Google's Antigravity service; running a localhost daemon does not make translation offline. Full-page translation excludes hidden and marked-sensitive elements, but visible personal or confidential text can still be included. Use Disabled Domains for pages you do not want translated.
+
+Pairing assumes you trust the terminal command, this extension, and the local operating system. It protects against an unrelated listener impersonating the daemon, including relaying challenges from a different port. It does not protect against malware already able to read your account's credential files or browser storage. OAuth and pairing credentials are stored outside this repository in the daemon's private data directory.
+
+### 1. Atomic Route Authentication & Mutual Bootstrap Pairing
+- All translation routes (`/api/translate`, `/api/translate_batch`) require paired Bearer tokens and origin verification. Untrusted origins and `Origin: null` (e.g. sandboxed iframes) are strictly rejected with HTTP 403.
+- **Out-of-Band High-Entropy Bootstrap**: Pairing is initiated via an out-of-band 128-bit code generated in your terminal (`python3 server/server.py pair`).
+- **Zero Plaintext Transmission**: The pairing code is never transmitted over the wire in plaintext. The daemon and extension mutually prove knowledge of the code using domain-separated HMAC challenge-responses (`agy-pair-server-proof-v1` and `agy-pair-client-redeem-v1`).
+- **Atomic Concurrency Control**: Attempt counters, rate limits (maximum 5 attempts), session expiration (5-minute TTL), and one-time token burning are executed atomically under inter-process and inter-thread file locks (`fcntl.flock` and `threading.Lock`).
+
+### 2. Anti-Relay Service Proof (`agy-service-proof-v1`)
+- Before transmitting private translation text or bearer tokens, the extension verifies the local service identity using a domain-separated HMAC challenge.
+- The challenge cryptographically binds the server's **actual listening port**, the **paired extension origin**, and a **fresh random nonce**.
+- If an unauthorized process or fake listener on another port attempts to relay a challenge to the genuine daemon, the port binding mismatch causes verification to fail, immediately aborting the request to protect your data.
+- Legacy Alfred workflow `/ping` verification is preserved for seamless coexistence.
+
+### 3. DOM Collector Privacy & Domain Disable List
+- **Sensitive Element Filtering**: The full-page translation DOM collector explicitly ignores text inside `[data-sensitive]`, password fields, credit card fields, editable nodes (`[contenteditable]`, `<textarea>`, `<input>`), and hidden elements (`[hidden]`, `[aria-hidden="true"]`, collapsed `<details>`).
+- **CSS Visibility Enforcement**: Ancestor visibility is inspected using `checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })` to ignore CSS-hidden nodes (`display: none`, `visibility: hidden`, `opacity: 0`, `content-visibility: hidden`) while safely preserving visible offscreen text.
+- **Centralized Domain Disable List**: Configure sensitive domains (e.g., banking or internal corporate tools) in Options. All translation triggers (floating buttons, keyboard shortcuts, context menus, full page) are strictly disabled on listed domains.
+
+### 4. Storage Isolation, Context Restriction & Cache Management
+- **Trusted Storage Access**: Secret storage (`chrome.storage.local`) is locked to trusted extension contexts using `chrome.storage.local.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' })`. Content scripts cannot read paired bearer tokens or client secrets.
+- **Options-Only Administrative Messages**: Pairing (`PAIR_EXTENSION`, `UNPAIR_EXTENSION`), settings modification (`SAVE_SETTINGS`), and cache clearing (`CLEAR_CACHE`) messages are exclusively authorized when sent from the extension's options page.
+- **Cache retention**: Selection translation results enforce a 14-day TTL on read; the running daemon also sweeps expired files every 60 seconds. Full-page batches are not cached on disk. "Disable translation cache" skips both reading and writing results for new extension requests. It does not erase older entries or change Alfred's cache behavior.
+- **Clear Local Cache** removes all recognized translation cache files, including fresh entries, source text, errors, and viewer tickets. It preserves OAuth tokens, server secrets, paired credentials, and unrelated files. Open Alfred result windows may need to be reopened after clearing.
+
+---
+
+## 🚀 Installation & Pairing Setup
 
 ### Step 1: Load Extension in Edge / Chrome
 
@@ -50,41 +81,65 @@ A high-performance text selection and full-page translation browser extension po
 3. Click **Load unpacked**.
 4. Select the `agy-translate-extension` directory.
 
----
-
-## 🔌 Local Daemon Service
-
-The extension includes a self-contained local daemon (`server/server.py`) that runs locally on `http://127.0.0.1:47821` and communicates directly with Google Antigravity. It does not require third-party API keys and seamlessly shares existing OAuth credentials with Alfred if available.
-
-### 1. Authenticate (First-time setup on a new computer)
+### Step 2: Authenticate Local Daemon (First-time setup)
 
 ```bash
 python3 server/server.py login
 ```
 *(If you have already signed in via Alfred on this machine, your credentials are automatically detected!)*
 
-### 2. Start Background Service (macOS LaunchAgent)
+### Step 3: Start Local Daemon
 
-Run the installation script to configure the service to run automatically in the background on startup:
-
+Run as a background macOS LaunchAgent:
 ```bash
 ./launchd/install_daemon.sh
 ```
-
-To run manually in foreground:
+Or run manually in foreground:
 ```bash
 python3 server/server.py serve
 ```
+
+### Step 4: Pair Extension with Local Service
+
+1. In your terminal, generate a one-time pairing code:
+   ```bash
+   python3 server/server.py pair
+   ```
+2. Open the extension **Options** page (right-click extension icon → **Options**).
+3. Under **Local Pairing & Security**, paste the 32-character pairing code and click **Pair Extension**.
+4. The status badge will update to `Paired with local service`.
 
 ---
 
 ## ⚙️ Configuration & Options
 
 Right-click the extension icon and select **Options** to customize:
+- **Model ID**: Choose a suggested model or enter any model ID available to your account. Defaults to Gemini 3.8 Flash (`gemini-3.8-flash-tiered`). Saved changes apply to new selection and full-page translation requests. Run `python3 server/server.py models` to list available IDs.
 - **Target Language**: Configure your default translation language.
+- **Local Pairing & Security**: Check pairing status, pair with a one-time code, or disconnect/unpair.
+- **Translation Cache**: Clear existing translation history or disable cache reads and writes for new extension requests.
+- **Disabled Domains**: Specify domains where translation features should never trigger.
 - **Floating Button**: Toggle automatic floating button on text selection.
 - **Copy Behavior**: Toggle whether popup automatically dismisses upon copying.
 - **Connection Port**: Test and configure the local daemon connection.
+
+After updating, reload the extension in `chrome://extensions` or `edge://extensions` and restart the local daemon to load these security changes. Existing installations must complete Step 4 once before translating. Google sign-in does not need to be repeated if the current credential is still valid. If a different unpacked installation gets a new extension ID, pair that installation separately.
+
+---
+
+## 🧪 Automated Offline Regression Tests
+
+The repository includes a comprehensive, self-contained offline test suite covering replay attacks, race conditions, forged proofs, and permission boundaries. The tests require no external internet access, npm modules, or pip packages.
+
+Run Python server security test suite:
+```bash
+python3 -m unittest discover -s tests -p "test_*.py"
+```
+
+Run Node.js client security test suite:
+```bash
+node --test tests/test_*.js
+```
 
 ---
 
