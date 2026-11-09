@@ -114,9 +114,9 @@
       <p class="form-hint">Existing results remain until they expire or you clear the local cache. Full-page translations are not cached.</p>
 
       <div class="daemon-info" style="margin-top: 16px;">
-        <h3>💡 Run agytrans as background service (LaunchAgent)</h3>
-        <p>To keep the local server running automatically on macOS startup:</p>
-        <pre><code>./launchd/install_daemon.sh</code></pre>
+        <h3>💡 Start the local agytrans service</h3>
+        <p>Run in Terminal from the extension folder. It keeps running until you log out or restart, so run it again after a restart. There is intentionally no auto-start at login.</p>
+        <pre><code>lsof -ti tcp:47821 -sTCP:LISTEN | xargs kill 2&gt;/dev/null; sleep 1; AGY_IDLE_EXIT=0 nohup /usr/bin/python3 server/server.py serve 47821 &gt;/dev/null 2&gt;&amp;1 &amp;</code></pre>
       </div>
     </div>
 

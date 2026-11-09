@@ -147,7 +147,7 @@ SKILLS = {
 
 BASE_PORT = 47821
 PORT_RANGE = 12
-IDLE_EXIT = 900          # Seconds. Shut down when unused; don't leave processes around
+IDLE_EXIT = int(os.environ.get("AGY_IDLE_EXIT", "900"))  # Seconds. Shut down when unused; 0 = never (manual start without launchd)
 CACHE_TTL = 14 * 86400
 
 # Longest a job can legitimately run: two attempts at the API plus the pause

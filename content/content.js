@@ -504,9 +504,9 @@
       </div>
       <div class="agy-error-box">
         <div class="agy-err-title">Cannot reach local agytrans service</div>
-        <div class="agy-err-desc">The extension connects to the local agytrans service on port 47821. Run this command in Terminal:</div>
+        <div class="agy-err-desc">The extension connects to the local agytrans service on port 47821. Run this command in Terminal from the extension folder:</div>
         <div class="agy-code-box">
-          <code>./launchd/install_daemon.sh</code>
+          <code>lsof -ti tcp:47821 -sTCP:LISTEN | xargs kill 2&gt;/dev/null; sleep 1; AGY_IDLE_EXIT=0 nohup /usr/bin/python3 server/server.py serve 47821 &gt;/dev/null 2&gt;&amp;1 &amp;</code>
           <button class="agy-copy-cmd-btn">Copy Command</button>
         </div>
         <button class="agy-retry-btn">Retry</button>

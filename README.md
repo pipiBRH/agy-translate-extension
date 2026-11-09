@@ -88,15 +88,20 @@ python3 server/server.py login
 ```
 *(If you have already signed in via Alfred on this machine, your credentials are automatically detected!)*
 
-### Step 3: Start Local Daemon
+### Step 3: Start Local Service
 
-Run as a background macOS LaunchAgent:
+Run in Terminal from the extension folder:
 ```bash
-./launchd/install_daemon.sh
+lsof -ti tcp:47821 -sTCP:LISTEN | xargs kill 2>/dev/null; sleep 1; AGY_IDLE_EXIT=0 nohup /usr/bin/python3 server/server.py serve 47821 >/dev/null 2>&1 &
 ```
-Or run manually in foreground:
+- It runs in the background until you log out or restart; run it again after a restart.
+- `AGY_IDLE_EXIT=0` keeps it running. Without it the service exits after 15 minutes of no use (default `900` seconds).
+- The `lsof … | xargs kill` part stops whatever already listens on 47821 — usually the Alfred agy Translate workflow's own older service, which the extension cannot use.
+- There is intentionally no LaunchAgent or other auto-start at login: endpoint security software treats that as persistence and quarantines files.
+
+Or run in the foreground (stops when you close the terminal):
 ```bash
-python3 server/server.py serve
+AGY_IDLE_EXIT=0 /usr/bin/python3 server/server.py serve
 ```
 
 ### Step 4: Pair Extension with Local Service
